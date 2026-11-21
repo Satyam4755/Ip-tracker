@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tap Blitz — Static Mini-Game</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --pulse: #22c55e;
+      --danger: #f87171;
+    }
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      display: grid;
+      place-items: center;
+      padding: 1.5rem;
+    }
+    .container {
+      width: 100%;
+      max-width: 680px;
+      background: var(--card);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 1.75rem;
+      display: grid;
+      gap: 1.5rem;
+    }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+    .badge {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent);
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .arena {
+      position: relative;
+      height: 220px;
+      background: #0b1120;
+      border: 1px dashed rgba(148, 163, 184, 0.35);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    #target {
+      position: absolute;
+      top: 80px;
+      left: 240px;
+      padding: 0.65rem 1.1rem;
+      border: none;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #06202a;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .cta-box {
+      background: rgba(34, 197, 94, 0.08);
+      border: 1px solid rgba(34, 197, 94, 0.45);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+    #fetch-ip-btn {
+      background: var(--pulse);
+      color: #052e16;
+      border: 3px solid #bbf7d0;
+      border-radius: 10px;
+      padding: 0.8rem 1.25rem;
+      font-size: 1rem;
+      font-weight: 800;
+      cursor: pointer;
+      animation: glow 1.6s infinite alternate;
+    }
+    @keyframes glow {
+      from { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55); transform: scale(1); }
+      to { box-shadow: 0 0 18px 4px rgba(34, 197, 94, 0.35); transform: scale(1.03); }
+    }
+    .status { font-size: 0.9rem; color: var(--muted); }
+    .auth-box {
+      border-top: 1px solid rgba(255,255,255,0.08);
+      padding-top: 1.25rem;
+      display: grid;
+      gap: 0.75rem;
+    }
+    .row { display: flex; gap: 0.5rem; }
+    input[type="password"] {
+      flex: 1;
+      padding: 0.65rem 0.85rem;
+      border-radius: 8px;
+      border: 1px solid rgba(148,163,184,0.3);
+      background: #0b1120;
+      color: var(--text);
+    }
+    button.secondary {
+      padding: 0.65rem 1rem;
+      border-radius: 8px;
+      border: none;
+      background: var(--accent);
+      color: #06202a;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .error { color: var(--danger); font-size: 0.9rem; }
+    ul.ip-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 0.4rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.9rem;
+    }
+    ul.ip-list li {
+      background: #0b1120;
+      padding: 0.55rem 0.75rem;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <div class="header">
+      <div>
+        <h1 style="margin:0;font-size:1.35rem;">Tap Blitz</h1>
+        <div class="status">Click the moving orb to score points</div>
+      </div>
+      <div class="badge">Score: <span id="score">0</span></div>
+    </div>
+
+    <div class="arena" id="arena">
+      <button id="target" type="button">Tap Me!</button>
+    </div>
+
+    <div class="cta-box">
+      <div>
+        <strong>Step 1 — Click Highlighted Button</strong>
+        <div class="status" id="ip-status">Fetches IP &amp; triggers POST request.</div>
+      </div>
+      <button id="fetch-ip-btn" type="button">Fetch &amp; Send IP</button>
+    </div>
+
+    <section class="auth-box">
+      <strong>Protected IP Viewer</strong>
+      <form class="row" id="auth-form">
+        <input id="admin-pass" type="password" placeholder="Enter password to view saved IPs" required />
+        <button class="secondary" type="submit">Unlock</button>
+      </form>
+      <div id="auth-message" class="status"></div>
+      <ul class="ip-list" id="ip-results" hidden></ul>
+    </section>
+  </main>
+
+  <script>
+    // Optional: replace with your own webhook/API endpoint (e.g., Formspree, Pipedream, Webhook.site)
+    const POST_ENDPOINT = "https://httpbin.org/post";
+    const STORAGE_KEY = "tap_blitz_ip_records";
+    const ACCESS_CODE = "Satyam3407";
+
+    // 1. Mini-game logic
+    let score = 0;
+    const scoreEl = document.getElementById("score");
+    const arena = document.getElementById("arena");
+    const target = document.getElementById("target");
+
+    target.addEventListener("click", () => {
+      score += 1;
+      scoreEl.textContent = score;
+      const maxX = Math.max(10, arena.clientWidth - target.offsetWidth - 10);
+      const maxY = Math.max(10, arena.clientHeight - target.offsetHeight - 10);
+      target.style.left = `${Math.floor(Math.random() * maxX)}px`;
+      target.style.top = `${Math.floor(Math.random() * maxY)}px`;
+    });
+
+    // 2. Fetch IP & trigger POST API
+    const fetchBtn = document.getElementById("fetch-ip-btn");
+    const ipStatus = document.getElementById("ip-status");
+
+    fetchBtn.addEventListener("click", async () => {
+      ipStatus.textContent = "Fetching IP address...";
+      try {
+        const res = await fetch("https://api.ipify.org?format=json");
+        const { ip } = await res.json();
+
+        const payload = {
+          ip,
+          score,
+          timestamp: new Date().toISOString()
+        };
+
+        // Trigger POST request
+        await fetch(POST_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        // Save locally for the static UI viewer
+        const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+        existing.unshift(payload);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
+
+        ipStatus.textContent = "POST API triggered and record saved.";
+      } catch (err) {
+        ipStatus.textContent = `Request failed: ${err.message}`;
+      }
+    });
+
+    // 3. Password-gated UI display
+    const authForm = document.getElementById("auth-form");
+    const passInput = document.getElementById("admin-pass");
+    const authMsg = document.getElementById("auth-message");
+    const ipResults = document.getElementById("ip-results");
+
+    authForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      ipResults.hidden = true;
+      ipResults.innerHTML = "";
+
+      if (passInput.value !== ACCESS_CODE) {
+        authMsg.className = "error";
+        authMsg.textContent = "Invalid password.";
+        return;
+      }
+
+      const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+      authMsg.className = "status";
+      authMsg.textContent = `Authenticated. ${records.length} record(s) found:`;
+
+      for (const item of records) {
+        const li = document.createElement("li");
+        li.innerHTML = `<span>${item.ip} (Score: ${item.score})</span><span>${new Date(item.timestamp).toLocaleString()}</span>`;
+        ipResults.appendChild(li);
+      }
+      ipResults.hidden = false;
+    });
+  </script>
+</body>
+</html>
